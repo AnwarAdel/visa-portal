@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>نظام محاكاة الموافقات الأمنية وتدقيق السفر</title>
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Cairo', sans-serif; direction: rtl; }
+    body { background-color: #f4f6f9; color: #333; padding: 20px; }
+    
+    /* لوحة التحكم وإدخال البيانات */
+    .form-container {
+      background: #fff; max-width: 850px; margin: 0 auto 30px auto;
+      padding: 25px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+      text-align: right;
+    }
+    .form-container h2 { margin-bottom: 20px; color: #1e3a8a; border-bottom: 2px solid #e2e8f0; padding-bottom: 10px; font-size: 18px; }
+    .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 15px; }
+    .form-group { display: flex; flex-direction: column; }
+    .form-group label { font-size: 13px; font-weight: 700; margin-bottom: 5px; color: #475569; text-align: right; }
+    .form-group input { padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 14px; text-align: right; }
+    .form-group input[type="file"] { padding: 7px; background: #f8fafc; cursor: pointer; }
+    
+    .btn-actions { display: flex; gap: 10px; margin-top: 20px; flex-wrap: wrap; }
+    .btn-submit {
+      flex: 2; padding: 12px; background: #1e3a8a; color: #fff;
+      font-size: 15px; font-weight: 700; border: none; border-radius: 6px; cursor: pointer; transition: 0.3s;
+    }
+    .btn-preview {
+      flex: 1; padding: 12px; background: #0284c7; color: #fff;
+      font-size: 15px; font-weight: 700; border: none; border-radius: 6px; cursor: pointer; transition: 0.3s;
+    }
+    .btn-print {
+      flex: 1; padding: 12px; background: #059669; color: #fff;
+      font-size: 15px; font-weight: 700; border: none; border-radius: 6px; cursor: pointer; transition: 0.3s;
+    }
+    .btn-submit:hover { background: #1e40af; }
+    .btn-preview:hover { background: #0369a1; }
+    .btn-print:hover { background: #10b981; }
+
+    /* شريط تنبيه المعاينة */
+    .preview-banner {
+      display: none; background: #0284c7; color: white; padding: 10px 20px;
+      text-align: center; font-weight: bold; border-radius: 8px; margin-bottom: 20px;
+    }
+
+    /* الحاوية العامة للمستندات */
+    .templates-wrapper {
+      display: flex; flex-direction: column; gap: 40px; align-items: center; justify-content: center;
+      margin-top: 20px;
+    }
+
+    /* ===================================================
+       ---- القالب الأول: موافقة أمنية (الصفحة الأولى) ----
+       =================================================== */
+    .card-template1 {
+      width: 780px; background: #fff; border-radius: 16px; overflow: hidden;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.08); border: 1px solid #cbd5e1;
+      text-align: right; page-break-after: always;
+      -webkit-print-color-adjust: exact; print-color-adjust: exact;
+    }
+    .t1-top-header {
+      background: #1e3a8a !important; color: white !important; padding: 15px 25px;
+      display: flex; justify-content: space-between; align-items: center;
+      -webkit-print-color-adjust: exact; print-color-adjust: exact;
+    }
+    .t1-top-badge { 
+      background: #059669 !important; color: white !important; 
+      padding: 5px 20px; border-radius: 20px; font-size: 13px; font-weight: bold; 
+      -webkit-print-color-adjust: exact; print-color-adjust: exact; 
+    }
+    .t1-top-header h3 { 
+      font-size: 18px; font-weight: 700; color: white !important; 
+      margin: 0; display: flex; align-items: center; gap: 6px;
+    }
+
+    .t1-body { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px; padding: 25px; direction: rtl; }
+    .t1-col { border-left: 1px solid #e2e8f0; padding-left: 15px; text-align: right; }
+    .t1-col:last-child { border-left: none; padding-left: 0; }
+    
+    .t1-title { color: #1e293b; font-size: 12px; font-weight: 800; margin-bottom: 15px; display: flex; align-items: center; gap: 6px; border-bottom: 1px solid #f1f5f9; padding-bottom: 5px; }
+    .t1-row-item { margin-bottom: 12px; }
+    .t1-label { color: #64748b; font-size: 10px; display: block; font-weight: 600; }
+    .t1-val { font-weight: 800; color: #0f172a; font-size: 13px; }
+    .t1-val-blue { font-weight: 800; color: #2563eb; font-size: 13px; }
+    .t1-footer { background: #e2e8f0 !important; text-align: center; padding: 10px; font-size: 12px; font-weight: bold; color: #1e293b; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+
+    /* ===================================================
+       ---- القالب الثاني: OK TO BOARD ----
+       =================================================== */
+    .card-template2 {
+      width: 780px; background: #fff; border-radius: 16px; padding: 30px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.08); border: 1px solid #cbd5e1; text-align: right; direction: rtl;
+      -webkit-print-color-adjust: exact; print-color-adjust: exact;
+    }
+
+    .t2-header-container {
+      display: flex; justify-content: space-between; align-items: flex-start;
+      margin-bottom: 25px; direction: rtl;
+    }
+
+    .t2-title-box { text-align: right; direction: rtl; display: flex; flex-direction: column; align-items: flex-start; }
+    .t2-date-time-top { font-size: 11px; color: #888; font-weight: 600; margin-bottom: 4px; direction: ltr; text-align: right; }
+    .t2-main-heading { font-size: 22px; font-weight: 800; color: #111827; letter-spacing: 0.3px; line-height: 1.2; margin-bottom: 2px; }
+    .t2-sub-heading { font-size: 13px; font-weight: 700; color: #374151; margin-bottom: 12px; }
+
+    .t2-dashed-badge {
+      border: 1px dashed #10b981; background: #fff !important;
+      padding: 6px 16px; border-radius: 6px; display: inline-flex;
+      align-items: center; gap: 8px; font-size: 12px; font-weight: 800; color: #065f46;
+      -webkit-print-color-adjust: exact; print-color-adjust: exact;
+    }
+    .t2-check-circle {
+      width: 18px; height: 18px; background: #10b981; color: white;
+      border-radius: 50%; display: flex; align-items: center; justify-content: center;
+      font-size: 10px; font-weight: bold;
+    }
+
+    .t2-logo-box { text-align: center; direction: ltr; display: flex; flex-direction: column; align-items: center; width: 140px; }
+    .custom-logo-img { max-width: 130px; max-height: 75px; object-fit: contain; margin-bottom: 4px; }
+    .t2-doc-ref-text { font-size: 11px; font-weight: 700; color: #475569; margin-top: 6px; font-style: italic; direction: ltr; text-align: left; width: 100%; }
+
+    .t2-divider-section {
+      display: flex; justify-content: space-between; align-items: center;
+      border-top: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0;
+      padding: 6px 0; margin: 20px 0 15px 0; font-size: 12px; font-weight: 800; direction: rtl;
+    }
+    .t2-sec-ar { color: #111827; text-align: right; }
+    .t2-sec-en { color: #374151; display: flex; align-items: center; gap: 6px; direction: ltr; text-align: left; }
+    .t2-green-dot { width: 8px; height: 8px; background: #10b981; border-radius: 50%; display: inline-block; }
+
+    .t2-verification-grid {
+      display: grid; grid-template-columns: 1fr 180px 1fr; gap: 15px; align-items: center; direction: rtl;
+    }
+    .t2-col-stack { display: flex; flex-direction: column; gap: 12px; }
+
+    .t2-box {
+      background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px;
+      padding: 10px 14px; text-align: right; direction: rtl; position: relative;
+    }
+    .t2-box-lbl-wrapper { display: flex; justify-content: space-between; font-size: 9px; color: #94a3b8; font-weight: 700; margin-bottom: 4px; direction: rtl; }
+    .t2-box-val-text { font-size: 13px; font-weight: 800; color: #0f172a; direction: rtl; text-align: right; }
+    .t2-box-val-ltr { font-size: 13px; font-weight: 800; color: #0f172a; direction: ltr; text-align: left; }
+    
+    .t2-box-green-bg {
+      background: #d1fae5 !important; border: 1px solid #a7f3d0 !important;
+      -webkit-print-color-adjust: exact; print-color-adjust: exact;
+    }
+    .t2-box-green-bg .t2-box-lbl-wrapper { color: #047857; }
+    .t2-box-green-bg .t2-box-val-text { color: #065f46; text-align: right; direction: rtl; }
+
+    .t2-qr-center-box {
+      border: 1px solid #e2e8f0; border-radius: 12px; padding: 8px;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      background: #fff; text-align: center;
+    }
+    .t2-qr-top-lbls { display: flex; justify-content: space-between; width: 100%; font-size: 8px; color: #94a3b8; font-weight: bold; margin-bottom: 4px; padding: 0 4px; direction: ltr; }
+    #qrcode img { width: 105px; height: 105px; margin: 0 auto; }
+    .t2-qr-sub-text { font-size: 8px; color: #94a3b8; margin-top: 4px; font-weight: 600; direction: ltr; }
+
+    .t2-grid-3col { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 12px; margin-bottom: 12px; direction: rtl; }
+    .t2-grid-1col { display: grid; grid-template-columns: 1fr; gap: 12px; margin-bottom: 12px; direction: rtl; }
+    .t2-grid-flight { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 12px; direction: rtl; }
+
+    /* ===================================================
+       ---- القالب الثالث: متصفح التحقق الوهمي للهاتف ----
+       =================================================== */
+    .card-template3-container {
+      width: 420px; background: #fff; border-radius: 20px; overflow: hidden;
+      box-shadow: 0 15px 35px rgba(0,0,0,0.15); border: 1px solid #cbd5e1; margin: 0 auto; display: none;
+      text-align: right; direction: rtl;
+    }
+    .browser-bar { background: #f1f5f9; padding: 10px 15px; display: flex; align-items: center; border-bottom: 1px solid #e2e8f0; justify-content: space-between; }
+    .browser-url { background: #fff; width: 100%; border-radius: 15px; padding: 5px 12px; font-size: 11px; color: #334155; border: 1px solid #cbd5e1; text-align: left; direction: ltr; font-family: monospace; }
+    .back-btn { background: #e2e8f0; border: none; padding: 4px 10px; border-radius: 4px; font-size: 11px; cursor: pointer; font-weight: bold; margin-left: 8px; }
+    
+    .t3-content { padding: 25px; text-align: center; }
+    .t3-logo-circle {
+      width: 85px; height: 85px; background: #fff; border: 2px solid #e2e8f0;
+      border-radius: 50%; margin: 0 auto 12px auto; display: flex; align-items: center;
+      justify-content: center; padding: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.05); overflow: hidden;
+    }
+    .custom-logo-img-t3 { width: 100%; height: 100%; object-fit: contain; }
+
+    .t3-main-title { font-size: 18px; font-weight: 800; color: #0f172a; margin-bottom: 4px; }
+    .t3-sub { font-size: 11px; color: #64748b; margin-bottom: 20px; }
+    
+    .t3-card { background: #f8fafc; border-radius: 14px; padding: 16px; border: 1px solid #e2e8f0; text-align: right; }
+    .t3-card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; border-bottom: 1px solid #e2e8f0; padding-bottom: 8px; }
+    .t3-status-tag { background: #d1fae5; color: #065f46; padding: 3px 12px; border-radius: 20px; font-size: 11px; font-weight: bold; }
+    
+    .t3-item { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; font-size: 12px; }
+    .t3-item-val { font-weight: 800; color: #0f172a; }
+    .t3-item-lbl { color: #64748b; font-weight: 600; }
+    
+    .t3-approved-btn { background: #ecfdf5; color: #047857; border: 1px solid #10b981; padding: 12px; border-radius: 12px; font-weight: 800; font-size: 14px; margin-top: 20px; text-align: center; }
+
+    .exit-preview-btn {
+      display: none; position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+      background: #1e3a8a; color: white; border: none; padding: 10px 25px; border-radius: 30px;
+      font-size: 14px; font-weight: bold; cursor: pointer; box-shadow: 0 4px 15px rgba(0,0,0,0.2); z-index: 1000;
+    }
+
+    @media print {
+      body { background: white; padding: 0; }
+      .form-container, .btn-actions, .card-template3-container, .sim-btn, .no-print, .preview-banner, .exit-preview-btn { display: none !important; }
+      .templates-wrapper { margin: 0; padding: 0; gap: 0; display: block !important; }
+      
+      .card-template1 {
+        width: 100% !important; max-width: 100% !important; box-shadow: none !important; border: 1px solid #cbd5e1 !important;
+        page-break-after: always !important; margin: 0; padding: 0;
+        -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important;
+      }
+      .card-template2 {
+        width: 100% !important; max-width: 100% !important; box-shadow: none !important; border: 1px solid #cbd5e1 !important;
+        page-break-before: always !important; margin: 0; padding: 0;
+        -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- لوحة إدخال البيانات -->
+  <div class="form-container no-print" id="formPanel">
+    <h2>نظام محاكاة إدخال بيانات المسافر والموافقات الأمنية</h2>
+    <div class="form-grid">
+      <div class="form-group" style="grid-column: 1 / -1; background: #eff6ff; padding: 12px; border-radius: 8px; border: 1px dashed #3b82f6;">
+        <label style="color: #1e3a8a; font-size: 14px;">🖼️ اختيار الشعار المخصص (سيتم وضعه في القالب الثاني والقالب الثالث تلقائياً):</label>
+        <input type="file" id="logoInput" accept="image/*" onchange="loadCustomLogo(event)">
+      </div>
+
+      <div class="form-group"><label>اسم المسافر الكامل:</label><input type="text" id="p_name" value="سفيان علي محمد النظاري"></div>
+      <div class="form-group"><label>الجنسية بالعربي:</label><input type="text" id="p_nat" value="يمنى"></div>
+      <div class="form-group"><label>الجنسية بالإنجليزي:</label><input type="text" id="p_nat_en" value="Yemen"></div>
+      <div class="form-group"><label>رقم جواز السفر:</label><input type="text" id="p_passport" value="10672618"></div>
+      <div class="form-group"><label>تاريخ الميلاد:</label><input type="date" id="p_dob" value="1986-01-01"></div>
+      <div class="form-group"><label>شركة الطيران بالعربي:</label><input type="text" id="p_airline" value="السعوديه"></div>
+      <div class="form-group"><label>شركة الطيران بالإنجليزي:</label><input type="text" id="p_airline_en" value="Saudia Airlines"></div>
+      <div class="form-group"><label>رقم الرحلة:</label><input type="text" id="p_flight" value="SV 311"></div>
+      <div class="form-group"><label>وجهة الوصول:</label><input type="text" id="p_dest" value="مصر"></div>
+      <div class="form-group"><label>جهة القدم:</label><input type="text" id="p_from" value="RUH"></div>
+      <div class="form-group"><label>تاريخ الإصدار / الموافقة:</label><input type="date" id="p_issue_date" value="2026-10-06"></div>
+      <div class="form-group"><label>تاريخ الانتهاء:</label><input type="date" id="p_expiry_date" value="2026-12-06"></div>
+      <div class="form-group"><label>تاريخ الوصول / الرحلة:</label><input type="date" id="p_flight_date" value="2026-10-12"></div>
+      <div class="form-group"><label>رقم التذكرة / الحجز:</label><input type="text" id="p_pnr" value="C9Z5HP"></div>
+      <div class="form-group"><label>رقم الموافقة المتسلسل:</label><input type="text" id="p_app_no" value="EGV-202627182"></div>
+      <div class="form-group"><label>مرجع الوثيقة Document Ref:</label><input type="text" id="p_doc_ref" value="DOC-352315"></div>
+    </div>
+    
+    <div class="btn-actions">
+      <button class="btn-submit" onclick="generateAll()">تحديث البيانات وتوليد المستندات</button>
+      <button class="btn-preview" onclick="togglePreviewMode()">👁️ معاينة المستند</button>
+      <button class="btn-print" onclick="window.print()">🖨️ طباعة المستند</button>
+    </div>
+  </div>
+
+  <div class="preview-banner no-print" id="previewBanner">
+    🔍 أنت الآن في وضع معاينة المستند (الصفحة الأولى والثانية جاهزتان للطباعة)
+  </div>
+
+  <button class="exit-preview-btn no-print" id="exitPreviewBtn" onclick="togglePreviewMode()">إغلاق المعاينة والعودة للتحكم</button>
+
+  <div class="templates-wrapper" id="mainTemplatesWrapper">
+
+    <!-- القالب الأول -->
+    <div class="card-template1" id="template1View">
+      <div class="t1-top-header">
+        <span class="t1-top-badge">موافق عليه</span>
+        <h3>موافقة أمنية/ Travel Permit🛡️</h3>
+      </div>
+      <div class="t1-body">
+        <div class="t1-col">
+          <div class="t1-title"><span>👤</span> المسافر / PASSENGER</div>
+          <div class="t1-row-item"><span class="t1-label">الاسم الكامل / FULL NAME</span><span class="t1-val" id="out_name1">---</span></div>
+          <div class="t1-row-item"><span class="t1-label">الجنسية / NATIONALITY</span><span class="t1-val" id="out_nat1">---</span></div>
+          <div class="t1-row-item"><span class="t1-label">رقم الجواز / PASSPORT</span><span class="t1-val" id="out_pass1">---</span></div>
+          <div class="t1-row-item"><span class="t1-label">الوجهة / DESTINATION</span><span class="t1-val" id="out_dest1">---</span></div>
+          <div class="t1-row-item"><span class="t1-label">جهة القدم / ARRIVING FROM</span><span class="t1-val" id="out_from1">---</span></div>
+        </div>
+        <div class="t1-col">
+          <div class="t1-title"><span>✈️</span> معلومات الرحلة / FLIGHT INFO</div>
+          <div class="t1-row-item"><span class="t1-label">تاريخ الرحلة / DATE</span><span class="t1-val" id="out_date1">---</span></div>
+          <div class="t1-row-item"><span class="t1-label">رقم الرحلة / FLIGHT NO</span><span class="t1-val-blue" id="out_flight1">---</span></div>
+          <div class="t1-row-item"><span class="t1-label">رقم التذكرة / TICKET NO</span><span class="t1-val" id="out_pnr1">---</span></div>
+          <div class="t1-row-item"><span class="t1-label">رقم الحجز / RESERVATION</span><span class="t1-val" id="out_pnr2">---</span></div>
+        </div>
+        <div class="t1-col">
+          <div class="t1-title"><span>📅</span> الصلاحية / VALIDITY</div>
+          <div class="t1-row-item"><span class="t1-label">صالحة لمدة / VALID FOR</span><span class="t1-val">Days 60</span></div>
+          <div class="t1-row-item"><span class="t1-label">تاريخ الإصدار / ISSUED</span><span class="t1-val" id="out_issue">---</span></div>
+          <div class="t1-row-item"><span class="t1-label">تاريخ الانتهاء / EXPIRY</span><span class="t1-val" id="out_expiry">---</span></div>
+          <div class="t1-row-item"><span class="t1-label">رقم الموافقة / APPROVAL NO</span><span class="t1-val-blue">1791325792281</span></div>
+          <div class="t1-row-item"><span class="t1-label">الناقل الجوي / AIRLINE</span><span class="t1-val" id="out_airline1">---</span></div>
+        </div>
+      </div>
+      <div class="t1-footer">حالة التعميم / Boarding Letter Status • تم إرسال التعميم</div>
+    </div>
+
+    <!-- القالب الثاني -->
+    <div class="card-template2" id="template2View">
+      <div class="t2-header-container">
+        <div class="t2-title-box">
+          <div class="t2-date-time-top" id="out_real_datetime">Wednesday, October 7, 2026 10:55 AM</div>
+          <div class="t2-main-heading">OK TO BOARD VERIFICATION</div>
+          <div class="t2-sub-heading">تأكيد صحة السفر والموافقة الأمنية</div>
+          <div class="t2-dashed-badge">
+            <div class="t2-check-circle">✔</div>
+            <span>تم التحقق و الموافقة | VERIFIED & APPROVED</span>
+          </div>
+        </div>
+
+        <div class="t2-logo-box">
+          <img id="displayLogoT2" src="" alt="Logo" class="custom-logo-img" style="display:none;">
+          <div class="t2-doc-ref-text" id="out_doc_ref">Document Ref: DOC-352315</div>
+        </div>
+      </div>
+
+      <div class="t2-divider-section">
+        <div class="t2-sec-ar">تفاصيل التحقق</div>
+        <div class="t2-sec-en"><span class="t2-green-dot"></span> VERIFICATION DETAILS</div>
+      </div>
+
+      <div class="t2-verification-grid">
+        <div class="t2-col-stack">
+          <div class="t2-box">
+            <div class="t2-box-lbl-wrapper"><span>تاريخ الموافقة</span><span>DATE OF APPROVAL</span></div>
+            <div class="t2-box-val-ltr" id="out_app_date">2026/10/06</div>
+          </div>
+          <div class="t2-box t2-box-green-bg">
+            <div class="t2-box-lbl-wrapper"><span>الحالة</span><span>STATUS</span></div>
+            <div class="t2-box-val-text" style="font-size:13px; font-weight:800; text-align:right;">PRE-CLEARED</div>
+          </div>
+        </div>
+
+        <div class="t2-qr-center-box">
+          <div class="t2-qr-top-lbls"><span>[ SCAN QR ]</span><span>GATE PORTAL</span></div>
+          <div id="qrcode"></div>
+          <div class="t2-qr-sub-text">Scan for Digital Confirmation</div>
+          <button class="sim-btn no-print" onclick="openSimulatedView()" style="margin-top:6px; background:#1e3a8a; color:#fff; border:none; padding:2px 8px; font-size:9px; border-radius:4px; cursor:pointer;">📱 فتح المعاينة</button>
+        </div>
+
+        <div class="t2-col-stack">
+          <div class="t2-box">
+            <div class="t2-box-lbl-wrapper"><span>رقم الموافقة</span><span>APPROVAL NUMBER</span></div>
+            <div class="t2-box-val-ltr" id="out_app_no">EGV-202627182</div>
+          </div>
+          <div class="t2-box">
+            <div class="t2-box-lbl-wrapper"><span>نوع التحقق</span><span>VERIFICATION TYPE</span></div>
+            <div class="t2-box-val-ltr" style="font-size:12px;">Pre-Travel Clearance</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="t2-divider-section">
+        <div class="t2-sec-ar">معلومات المسافر</div>
+        <div class="t2-sec-en"><span class="t2-green-dot"></span> PASSENGER INFORMATION</div>
+      </div>
+
+      <div class="t2-grid-3col">
+        <div class="t2-box">
+          <div class="t2-box-lbl-wrapper"><span>اسم المسافر</span><span>PASSENGER NAME</span></div>
+          <div class="t2-box-val-text" id="out_name2">سفيان علي محمد النظاري</div>
+        </div>
+        <div class="t2-box">
+          <div class="t2-box-lbl-wrapper"><span>رقم جواز السفر</span><span>Passport Number</span></div>
+          <div class="t2-box-val-ltr" id="out_pass2">10672618</div>
+        </div>
+        <div class="t2-box">
+          <div class="t2-box-lbl-wrapper"><span>تاريخ الميلاد</span><span>BIRTH DATE</span></div>
+          <div class="t2-box-val-ltr" id="out_dob2">1986/01/01</div>
+        </div>
+      </div>
+
+      <div class="t2-grid-1col">
+        <div class="t2-box">
+          <div class="t2-box-lbl-wrapper"><span>الجنسية</span><span>NATIONALITY</span></div>
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-top:2px; direction:rtl;">
+            <span style="font-size:13px; font-weight:800; color:#0f172a;" id="out_nat2">يمنى</span>
+            <span style="font-size:13px; font-weight:800; color:#0f172a; direction:ltr;" id="out_nat_en2">Yemen</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="t2-divider-section">
+        <div class="t2-sec-ar">معلومات الرحلة</div>
+        <div class="t2-sec-en"><span class="t2-green-dot"></span> FLIGHT DETAILS</div>
+      </div>
+
+      <div class="t2-grid-flight">
+        <div class="t2-box">
+          <div class="t2-box-lbl-wrapper"><span>شركة الطيران</span><span>AIRLINE</span></div>
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-top:2px; direction:rtl;">
+            <span style="font-size:12px; font-weight:800; color:#0f172a;" id="out_airline2">السعوديه</span>
+            <span style="font-size:12px; font-weight:800; color:#0f172a; direction:ltr;" id="out_airline_en2">Saudia Airlines</span>
+          </div>
+        </div>
+        <div class="t2-box">
+          <div class="t2-box-lbl-wrapper"><span>رقم الرحلة</span><span>Flight No.</span></div>
+          <div class="t2-box-val-ltr" id="out_flight2">SV 311</div>
+        </div>
+        <div class="t2-box">
+          <div class="t2-box-lbl-wrapper"><span>تاريخ الوصول</span><span>ARRIVAL DATE</span></div>
+          <div class="t2-box-val-ltr" id="out_date2">2026/10/12</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- القالب الثالث -->
+  <div class="card-template3-container" id="template3View">
+    <div class="browser-bar">
+      <button class="back-btn no-print" onclick="closeSimulatedView()">⬅ عودة</button>
+      <div class="browser-url" id="browserUrlText">https://eg-visa.com/verify</div>
+    </div>
+    <div class="t3-content">
+      <div class="t3-logo-circle">
+        <img id="displayLogoT3" src="" alt="Logo" class="custom-logo-img-t3" style="display:none;">
+      </div>
+
+      <div class="t3-main-title">التحقق من صحة البرقية</div>
+      <div class="t3-sub">نتيجة التحقق من حالة البرقية الرسمية</div>
+
+      <div class="t3-card">
+        <div class="t3-card-header">
+          <span style="font-size:12px; font-weight:bold; color:#1e3a8a;">بيانات المسافر الرسمية</span>
+          <span class="t3-status-tag">مُعتمد وموثق</span>
+        </div>
+        
+        <div class="t3-item"><span class="t3-item-lbl">اسم المسافر</span><span class="t3-item-val" id="out_name3">---</span></div>
+        <div class="t3-item"><span class="t3-item-lbl">رقم جواز السفر</span><span class="t3-item-val" id="out_pass3">---</span></div>
+        <div class="t3-item"><span class="t3-item-lbl">الجنسية</span><span class="t3-item-val" id="out_nat3">---</span></div>
+        <div class="t3-item"><span class="t3-item-lbl">تاريخ الوصول</span><span class="t3-item-val" id="out_date3">---</span></div>
+        <div class="t3-item"><span class="t3-item-lbl">شركة الطيران</span><span class="t3-item-val" id="out_airline3">---</span></div>
+        <div class="t3-item"><span class="t3-item-lbl">الوجهة</span><span class="t3-item-val" id="out_dest3">---</span></div>
+        <div class="t3-item"><span class="t3-item-lbl">رمز الرحلة</span><span class="t3-item-val" id="out_flight3">---</span></div>
+      </div>
+
+      <div class="t3-approved-btn">
+        ✔ مسموح بالصعود (OK TO BOARD)<br>
+        <span style="font-size:10px; font-weight:normal; color:#065f46;">تم اعتماد حالة الصعود بنجاح من النظام الآلي الموحد</span>
+      </div>
+      <div style="font-size:9px; color:#94a3b8; margin-top:15px;">نظام التحقق الإلكتروني - بوابة الموافقات المصرية الرسمية</div>
+    </div>
+  </div>
+
+  <script>
+    let isPreviewActive = false;
+    let globalLogoBase64 = "";
+
+    function loadCustomLogo(event) {
+      const file = event.target.files[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+          globalLogoBase64 = e.target.result;
+          localStorage.setItem('savedCustomLogo', globalLogoBase64);
+          applyLogoToTemplates(globalLogoBase64);
+        };
+        reader.readAsDataURL(file);
+      }
+    }
+
+    function applyLogoToTemplates(logoSrc) {
+      const imgT2 = document.getElementById('displayLogoT2');
+      const imgT3 = document.getElementById('displayLogoT3');
+      if (logoSrc) {
+        imgT2.src = logoSrc;
+        imgT2.style.display = 'block';
+        imgT3.src = logoSrc;
+        imgT3.style.display = 'block';
+      }
+    }
+
+    function formatDate(dateStr) {
+      if (!dateStr) return '';
+      return dateStr.replace(/-/g, '/');
+    }
+
+    function generateAll() {
+      const name = document.getElementById('p_name').value;
+      const nat = document.getElementById('p_nat').value;
+      const natEn = document.getElementById('p_nat_en').value;
+      const pass = document.getElementById('p_passport').value;
+      const dob = formatDate(document.getElementById('p_dob').value);
+      const airline = document.getElementById('p_airline').value;
+      const airlineEn = document.getElementById('p_airline_en').value;
+      const flight = document.getElementById('p_flight').value;
+      const dest = document.getElementById('p_dest').value;
+      const from = document.getElementById('p_from').value;
+      const issueDate = formatDate(document.getElementById('p_issue_date').value);
+      const expiryDate = formatDate(document.getElementById('p_expiry_date').value);
+      const flightDate = formatDate(document.getElementById('p_flight_date').value);
+      const pnr = document.getElementById('p_pnr').value;
+      const appNo = document.getElementById('p_app_no').value;
+      const docRef = document.getElementById('p_doc_ref').value;
+
+      const now = new Date();
+      const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true };
+      const realDateTimeStr = now.toLocaleDateString('en-US', options);
+      document.getElementById('out_real_datetime').innerText = realDateTimeStr;
+
+      const passengerData = { name, nat, natEn, pass, dob, airline, airlineEn, flight, dest, flightDate, appNo, docRef, realDateTimeStr };
+      localStorage.setItem('latestPassenger', JSON.stringify(passengerData));
+
+      // 1. تعبئة القالب الأول
+      document.getElementById('out_issue').innerText = issueDate;
+      document.getElementById('out_expiry').innerText = expiryDate;
+      document.getElementById('out_date1').innerText = flightDate;
+      document.getElementById('out_name1').innerText = name;
+      document.getElementById('out_nat1').innerText = nat;
+      document.getElementById('out_pass1').innerText = pass;
+      document.getElementById('out_dest1').innerText = dest;
+      document.getElementById('out_from1').innerText = from;
+      document.getElementById('out_flight1').innerText = flight;
+      document.getElementById('out_pnr1').innerText = pnr;
+      document.getElementById('out_pnr2').innerText = pnr;
+      document.getElementById('out_airline1').innerText = airline;
+
+      // 2. تعبئة القالب الثاني
+      document.getElementById('out_app_no').innerText = appNo;
+      document.getElementById('out_app_date').innerText = issueDate;
+      document.getElementById('out_doc_ref').innerText = `Document Ref: ${docRef}`;
+      document.getElementById('out_name2').innerText = name;
+      document.getElementById('out_pass2').innerText = pass;
+      document.getElementById('out_dob2').innerText = dob;
+      document.getElementById('out_nat2').innerText = nat;
+      document.getElementById('out_nat_en2').innerText = natEn;
+      document.getElementById('out_airline2').innerText = airline;
+      document.getElementById('out_airline_en2').innerText = airlineEn;
+      document.getElementById('out_flight2').innerText = flight;
+      document.getElementById('out_date2').innerText = flightDate;
+
+      // 3. تعبئة القالب الثالث
+      updateTemplate3(passengerData);
+
+      // ربط الـ QR بشرط فتح صفحة التحقق (القالب الثالث) مباشرة بدلاً من السيرفر الخارجي
+      const currentFullUrl = window.location.href.split('?')[0];
+      const encodedVerifyUrl = `${currentFullUrl}?mode=verify&pass=${encodeURIComponent(pass)}&name=${encodeURIComponent(name)}&nat=${encodeURIComponent(nat)}&airline=${encodeURIComponent(airline)}&flight=${encodeURIComponent(flight)}&dest=${encodeURIComponent(dest)}&date=${encodeURIComponent(flightDate)}`;
+
+      document.getElementById("qrcode").innerHTML = "";
+      new QRCode(document.getElementById("qrcode"), {
+        text: encodedVerifyUrl,
+        width: 105,
+        height: 105
+      });
+    }
+
+    function togglePreviewMode() {
+      isPreviewActive = !isPreviewActive;
+      const formPanel = document.getElementById('formPanel');
+      const previewBanner = document.getElementById('previewBanner');
+      const exitBtn = document.getElementById('exitPreviewBtn');
+
+      if (isPreviewActive) {
+        formPanel.style.display = 'none';
+        previewBanner.style.display = 'block';
+        exitBtn.style.display = 'block';
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      } else {
+        formPanel.style.display = 'block';
+        previewBanner.style.display = 'none';
+        exitBtn.style.display = 'none';
+      }
+    }
+
+    function updateTemplate3(data) {
+      document.getElementById('out_name3').innerText = data.name || '---';
+      document.getElementById('out_pass3').innerText = data.pass || '---';
+      document.getElementById('out_nat3').innerText = data.nat || '---';
+      document.getElementById('out_airline3').innerText = data.airline || '---';
+      document.getElementById('out_flight3').innerText = data.flight || '---';
+      document.getElementById('out_dest3').innerText = data.dest || '---';
+      document.getElementById('out_date3').innerText = data.flightDate || '---';
+      document.getElementById('browserUrlText').innerText = `https://eg-visa.com/verify?personid=${data.pass || '10672618'}`;
+    }
+
+    function openSimulatedView() {
+      document.getElementById('formPanel').style.display = 'none';
+      document.getElementById('mainTemplatesWrapper').style.display = 'none';
+      const t3 = document.getElementById('template3View');
+      t3.style.display = 'block';
+      t3.style.margin = '40px auto';
+    }
+
+    function closeSimulatedView() {
+      document.getElementById('formPanel').style.display = 'block';
+      document.getElementById('mainTemplatesWrapper').style.display = 'flex';
+      document.getElementById('template3View').style.display = 'none';
+    }
+
+    window.onload = function() {
+      const savedLogo = localStorage.getItem('savedCustomLogo');
+      if (savedLogo) {
+        applyLogoToTemplates(savedLogo);
+      }
+
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.get('mode') === 'verify') {
+        // عند مسح الـ QR من كاميرا الهاتف
+        document.getElementById('formPanel').style.display = 'none';
+        document.getElementById('mainTemplatesWrapper').style.display = 'none';
+        
+        const t3 = document.getElementById('template3View');
+        t3.style.display = 'block';
+        t3.style.margin = '40px auto';
+
+        // استخدام البيانات الآتية في الرابط مباشرة
+        const verifyData = {
+          name: urlParams.get('name'),
+          pass: urlParams.get('pass'),
+          nat: urlParams.get('nat'),
+          airline: urlParams.get('airline'),
+          flight: urlParams.get('flight'),
+          dest: urlParams.get('dest'),
+          flightDate: urlParams.get('date')
+        };
+
+        updateTemplate3(verifyData);
+      } else {
+        generateAll();
+      }
+    };
+  </script>
+</body>
+</html>
