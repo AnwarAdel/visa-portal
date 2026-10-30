@@ -539,9 +539,8 @@
       updateTemplate3(passengerData);
 
       // ربط الـ QR بشرط فتح صفحة التحقق (القالب الثالث) مباشرة بدلاً من السيرفر الخارجي
-      const currentFullUrl = window.location.href.split('?')[0];
-      const encodedVerifyUrl = `${currentFullUrl}?mode=verify&pass=${encodeURIComponent(pass)}&name=${encodeURIComponent(name)}&nat=${encodeURIComponent(nat)}&airline=${encodeURIComponent(airline)}&flight=${encodeURIComponent(flight)}&dest=${encodeURIComponent(dest)}&date=${encodeURIComponent(flightDate)}`;
-
+     const baseSiteUrl = "https://anwar-alahwal.github.io/travel-verify/";
+const encodedVerifyUrl = `${baseSiteUrl}?mode=verify&pass=${encodeURIComponent(pass)}&name=${encodeURIComponent(name)}&nat=${encodeURIComponent(nat)}&airline=${encodeURIComponent(airline)}&flight=${encodeURIComponent(flight)}&dest=${encodeURIComponent(dest)}&date=${encodeURIComponent(flightDate)}`;
       document.getElementById("qrcode").innerHTML = "";
       new QRCode(document.getElementById("qrcode"), {
         text: encodedVerifyUrl,
